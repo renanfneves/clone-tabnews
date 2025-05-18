@@ -23,6 +23,7 @@ jobs:
           node-version: "lts/hydrogen"
       - run: npm ci
       - run: npm run lint:eslint:check
+
   commitlint:
     name: commitlint
     runs-on: ubuntu-latest
