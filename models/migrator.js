@@ -1,26 +1,52 @@
-import orchestrator from "tests/orchestrator.js";
+import migrationRunner from "node-pg-migrate";
+import { resolve } from "node:path";
+import database from "infra/database.js";
 
-beforeAll(async () => {
-  await orchestrator.waitForAllServices();
-});
+const defaultMigrationOptions = {
+  dryRun: true,
+  dir: resolve("infra", "migrations"),
+  direction: "up",
+  log: () => {},
+  migrationsTable: "pgmigrations",
+};
 
-describe("POST /api/v1/status", () => {
-  describe("Anonymous user", () => {
-    test("Retrieving current system status", async () => {
-      const response = await fetch("http://localhost:3000/api/v1/status", {
-        method: "POST",
-      });
-      expect(response.status).toBe(405);
+async function listPendingMigrations() {
+  let dbClient;
 
-      const responseBody = await response.json();
+  try {
+    dbClient = await database.getNewClient();
 
-      expect(responseBody).toEqual({
-        name: "MethodNotAllowedError",
-        message: "Método não permitido para este endpoint.",
-        action:
-          "Verifique se o método HTTP enviado é válido para este endpoint.",
-        status_code: 405,
-      });
+    const pendingMigrations = await migrationRunner({
+      ...defaultMigrationOptions,
+      dbClient,
     });
-  });
-});
+    return pendingMigrations;
+  } finally {
+    await dbClient?.end();
+  }
+}
+
+async function runPendingMigrations() {
+  let dbClient;
+
+  try {
+    dbClient = await database.getNewClient();
+
+    const migratedMigrations = await migrationRunner({
+      ...defaultMigrationOptions,
+      dbClient,
+      dryRun: false,
+    });
+
+    return migratedMigrations;
+  } finally {
+    await dbClient?.end();
+  }
+}
+
+const migrator = {
+  listPendingMigrations,
+  runPendingMigrations,
+};
+
+export default migrator;
